@@ -11,7 +11,6 @@
  */
 
 (function() { 
-	
 	if(!window.svgEditor) window.svgEditor = function($) {
 		var svgCanvas;
 		var Editor = {};
@@ -156,6 +155,9 @@
 			if(opts.pngsave) {
 				svgCanvas.bind("exported", opts.pngsave);
 			}
+                        if(opts.pngsave){
+                            svgCanvas.bind("savedServer", opts.pngsave)
+                        }
 			customHandlers = opts;
 			
 		}
@@ -282,6 +284,7 @@
 					'#tool_clear div,#layer_new':'new_image',
 					'#tool_save div':'save',
 					'#tool_export div':'export',
+                                        '#tool_save_server div' : 'save_server',
 					'#tool_open div div':'open',
 					'#tool_import div div':'import',
 					'#tool_source':'source',
@@ -425,6 +428,7 @@
 				workarea = $("#workarea"),
 				show_save_warning = false, 
 				exportWindow = null;
+                                saveServerWindow = null;
 
 			// This sets up alternative dialog boxes. They mostly work the same way as
 			// their UI counterparts, expect instead of returning the result, a callback
@@ -445,7 +449,7 @@
 					if(type != 'alert') {
 						$('<input type="button" value="' + uiStrings.cancel + '">')
 							.appendTo(btn_holder)
-							.click(function() { box.hide();callback(false)});
+							.click(function() {box.hide();callback(false)});
 					}
 					
 					if(type == 'prompt') {
@@ -469,10 +473,10 @@
 					if(type == 'prompt') input.focus();
 				}
 				
-				$.alert = function(msg, cb) { dbox('alert', msg, cb);};
-				$.confirm = function(msg, cb) {	dbox('confirm', msg, cb);};
-				$.process_cancel = function(msg, cb) {	dbox('process', msg, cb);};
-				$.prompt = function(msg, txt, cb) { dbox('prompt', msg, cb, txt);};
+				$.alert = function(msg, cb) {dbox('alert', msg, cb);};
+				$.confirm = function(msg, cb) {dbox('confirm', msg, cb);};
+				$.process_cancel = function(msg, cb) {dbox('process', msg, cb);};
+				$.prompt = function(msg, txt, cb) {dbox('prompt', msg, cb, txt);};
 			}());
 			
 			var setSelectMode = function() {
@@ -576,6 +580,51 @@
 					exportWindow.alert(note);
 				}
 			};
+                        
+                        var saveServerHandler = function(window, data){
+                            var issues = data.issues;
+                            
+                            if(!$('#export_canvas').length){
+                                $('<canvas>', {id:'export_canvas'}).hide().appendTo('body');
+                            }
+                            
+                            var c = $('#export_canvas')[0];
+                            
+                            c.width = svgCanvas.contentW;
+                            c.height = svgCanvas.contentH;
+                            
+                            canvg(c, data.svg);
+                            
+                            var datauri = c.toDataURL('image/png');
+                            
+                            //saveServerWindow.location.href = datauri;
+                            
+                            console.log('save server handler');
+                            //console.log(datauri);
+                            
+                            $.post('http://localhost:8888/svg-edit/save-image/index.php',
+                                {
+                                    img:datauri
+                                },
+                                function(data){
+                                    console.log(data);
+                                }
+                            );
+
+//                              $.ajax({
+//                                  type:'POST',
+//                                  url: 'http://localhost:8888/svg-edit/save-image/index.php',
+//                                  contentType: 'application/octet-stream',
+//                                  processData: false,
+//                                  data: datauri,
+//                                  dataType: "text"
+//                              });
+                                
+                                 //$('#upfile').val(datauri);
+                                 
+                                 //console.log($('#upfile').val());
+                                //$('#up').submit();
+                        }
 			
 			// called when we've selected a different element
 			var selectedChanged = function(window,elems) {
@@ -831,7 +880,7 @@
 								$(sel).bind(evt, func);
 							});
 							break;
-						case 'button-select': 
+						case 'button-select':
 							var html = '<div id="' + tool.id + '" class="dropdown toolset" title="' + tool.title + '">'
 								+ '<div id="cur_' + tool.id + '" class="icon_label"></div><button></button></div>';
 							
@@ -1057,7 +1106,7 @@
 				var opts = null;
 				if (color.substr(0,5) == "url(#") {
 					var grad = document.getElementById(color.substr(5,color.length-6));
-					opts = { alpha: opac };
+					opts = {alpha: opac};
 					opts[grad.tagName] = grad;
 				} 
 				else if (color.substr(0,1) == "#") {
@@ -1333,14 +1382,15 @@
 				}
 			};
 		
-			$('#text').focus( function(){ textBeingEntered = true; } );
-			$('#text').blur( function(){ textBeingEntered = false; } );
+			$('#text').focus( function(){textBeingEntered = true;} );
+			$('#text').blur( function(){textBeingEntered = false;} );
 		  
 			// bind the selected event to our function that handles updates to the UI
 			svgCanvas.bind("selected", selectedChanged);
 			svgCanvas.bind("changed", elementChanged);
 			svgCanvas.bind("saved", saveHandler);
 			svgCanvas.bind("exported", exportHandler);
+			svgCanvas.bind("exported", saveServerHandler);
 			svgCanvas.bind("zoomed", zoomChanged);
 			svgCanvas.bind("extension_added", extAdded);
 			svgCanvas.textActions.setInputElem($("#text")[0]);
@@ -2136,6 +2186,24 @@
 					});
 				}
 			}
+                        
+                        var clickSaveServer = function(){
+                            if(!customHandlers.pngsave){
+                                var str = uiStrings.loadingImage;
+                                console.log(str);
+                                //saveServerWindow = window.open("data:text/html;charset=utf-8,<title>" + str + "<\/title><h1>" + str + "<\/h1>");
+                            }
+                            
+                            if(window.canvg) {
+					svgCanvas.rasterExport();
+				} else {
+					$.getScript('canvg/rgbcolor.js', function() {
+						$.getScript('canvg/canvg.js', function() {
+							svgCanvas.rasterExport();
+						});
+					});
+				}
+                        }
 			
 			// by default, svgCanvas.open() is a no-op.
 			// it is up to an extension mechanism (opera widget, etc) 
@@ -2373,7 +2441,7 @@
 				} else {
 					var size = curPrefs.iconsize;
 					if(size && size !== 'm') {
-						var icon_sizes = { s:16, m:24, l:32, xl:48}, obj = {};
+						var icon_sizes = {s:16, m:24, l:32, xl:48}, obj = {};
 						obj[elem + ' .svg_icon'] = icon_sizes[size];
 						$.resizeSvgIcons(obj);
 					}
@@ -2384,7 +2452,7 @@
 				if(size == curPrefs.size && !force) return;
 				$.pref('iconsize', size);
 				$('#iconsize').val(size);
-				var icon_sizes = { s:16, m:24, l:32, xl:48 };
+				var icon_sizes = {s:16, m:24, l:32, xl:48};
 				var size_num = icon_sizes[size];
 				
 				// Change icon size
@@ -2508,7 +2576,7 @@
 					"input.spin-button": {
 						'background-image': {l: "url('images/spinbtn_updn_big.png')", xl: "url('images/spinbtn_updn_big.png')"},
 						'background-position': {l: '100% -5px', xl: '100% -2px'},
-						'padding-right': {l: '24px', xl: '24px' }
+						'padding-right': {l: '24px', xl: '24px'}
 					},
 					"input.spin-button.up": {
 						'background-position': {l: '100% -45px', xl: '100% -42px'}
@@ -2686,8 +2754,8 @@
 					.jGraduate(
 					{ 
 						paint: paint,
-						window: { pickerTitle: title },
-						images: { clientPath: "jgraduate/images/" }
+						window: {pickerTitle: title},
+						images: {clientPath: "jgraduate/images/"}
 					},
 					function(p) {
 						paint = new $.jGraduate.Paint(p);
@@ -2876,7 +2944,7 @@
 			
 			$('#layer_new').click(function() {
 				var curNames = new Array(svgCanvas.getNumLayers());
-				for (var i = 0; i < curNames.length; ++i) { curNames[i] = svgCanvas.getLayer(i); }
+				for (var i = 0; i < curNames.length; ++i) {curNames[i] = svgCanvas.getLayer(i);}
 				
 				var j = (curNames.length+1);
 				var uniqName = uiStrings.layer + " " + j;
@@ -2947,7 +3015,7 @@
 					}
 			
 					var curNames = new Array(svgCanvas.getNumLayers());
-					for (var i = 0; i < curNames.length; ++i) { curNames[i] = svgCanvas.getLayer(i); }
+					for (var i = 0; i < curNames.length; ++i) {curNames[i] = svgCanvas.getLayer(i);}
 					if ($.inArray(newName, curNames) != -1) {
 						$.alert(uiStrings.layerHasThatName);
 						return;
@@ -3028,7 +3096,7 @@
 			// if no layer is passed in, this function restores the other layers
 			var toggleHighlightLayer = function(layerNameToHighlight) {
 				var curNames = new Array(svgCanvas.getNumLayers());
-				for (var i = 0; i < curNames.length; ++i) { curNames[i] = svgCanvas.getLayer(i); }
+				for (var i = 0; i < curNames.length; ++i) {curNames[i] = svgCanvas.getLayer(i);}
 			
 				if (layerNameToHighlight) {
 					for (var i = 0; i < curNames.length; ++i) {
@@ -3220,8 +3288,9 @@
 					{sel:'#tool_image', fn: clickImage, evt: 'mouseup', key: 8},
 					{sel:'#tool_zoom', fn: clickZoom, evt: 'mouseup', key: 9},
 					{sel:'#tool_clear', fn: clickClear, evt: 'mouseup', key: [modKey+'N', true]},
-					{sel:'#tool_save', fn: function() { editingsource?saveSourceEditor():clickSave()}, evt: 'mouseup', key: [modKey+'S', true]},
+					{sel:'#tool_save', fn: function() {editingsource?saveSourceEditor():clickSave()}, evt: 'mouseup', key: [modKey+'S', true]},
 					{sel:'#tool_export', fn: clickExport, evt: 'mouseup'},
+                                        {sel:'#tool_save_server', fn:clickSaveServer, evt:'mouseup'},
 					{sel:'#tool_open', fn: clickOpen, evt: 'mouseup', key: [modKey+'O', true]},
 					{sel:'#tool_import', fn: clickImport, evt: 'mouseup'},
 					{sel:'#tool_source', fn: showSourceEditor, evt: 'click', key: ['U', true]},
@@ -3415,13 +3484,13 @@
 				}
 			});
 			
-			$('#rect_rx').SpinButton({ min: 0, max: 1000, step: 1, callback: changeRectRadius });
-			$('#stroke_width').SpinButton({ min: 0, max: 99, step: 1, smallStep: 0.1, callback: changeStrokeWidth });
-			$('#angle').SpinButton({ min: -180, max: 180, step: 5, callback: changeRotationAngle });
-			$('#font_size').SpinButton({ step: 1, min: 0.001, stepfunc: stepFontSize, callback: changeFontSize });
-			$('#group_opacity').SpinButton({ step: 5, min: 0, max: 100, callback: changeOpacity });
-			$('#blur').SpinButton({ step: .1, min: 0, max: 10, callback: changeBlur });
-			$('#zoom').SpinButton({ min: 0.001, max: 10000, step: 50, stepfunc: stepZoom, callback: changeZoom });
+			$('#rect_rx').SpinButton({min: 0, max: 1000, step: 1, callback: changeRectRadius});
+			$('#stroke_width').SpinButton({min: 0, max: 99, step: 1, smallStep: 0.1, callback: changeStrokeWidth});
+			$('#angle').SpinButton({min: -180, max: 180, step: 5, callback: changeRotationAngle});
+			$('#font_size').SpinButton({step: 1, min: 0.001, stepfunc: stepFontSize, callback: changeFontSize});
+			$('#group_opacity').SpinButton({step: 5, min: 0, max: 100, callback: changeOpacity});
+			$('#blur').SpinButton({step: .1, min: 0, max: 10, callback: changeBlur});
+			$('#zoom').SpinButton({min: 0.001, max: 10000, step: 50, stepfunc: stepZoom, callback: changeZoom});
 			
 			window.onbeforeunload = function() { 
 				// Suppress warning if page is empty 
