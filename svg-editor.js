@@ -9,6 +9,15 @@
  * Copyright(c) 2010 Narendra Sisodiya
  *
  */
+$(document).ready(function(){
+    $('#main_button #main_menu #tool_clear').hide();
+    $('#main_button #main_menu #tool_open #fileinputs').hide();
+    $('#main_button #main_menu #tool_open span').hide();
+    $('#main_button #main_menu #tool_save').hide();
+    $('#main_button #main_menu #tool_docprops').hide();
+    
+});
+
 
 (function() { 
 	if(!window.svgEditor) window.svgEditor = function($) {
@@ -3781,8 +3790,11 @@
 	
 	// Run init once DOM is loaded
 	$(svgEditor.init);
-	
+        
+        
 })();
+
+
 
 // ?iconsize=s&bkgd_color=555
 

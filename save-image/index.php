@@ -1,6 +1,7 @@
 <?php
 
 $str = $_REQUEST['img'];
+echo $str;
 
 $arr = explode(',', $str); 
 $data = $arr[1];
